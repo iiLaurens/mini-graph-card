@@ -195,13 +195,30 @@ export default class Graph {
   getBars(position, total, spacing = 4) {
     const coords = this._calcY(this.coords);
     const xRatio = ((this.width - spacing) / Math.ceil(this.hours * this.points)) / total;
-    return coords.map((coord, i) => ({
-      x: (xRatio * i * total) + (xRatio * position) + spacing,
-      y: coord[Y],
-      height: this.height - coord[Y] + this.margin[Y] * 4,
-      width: xRatio - spacing,
-      value: coord[V],
-    }));
+
+    // Compute the SVG y-coordinate of value 0 (the zero baseline for bars).
+    // In logarithmic mode, log10(max(1, 0)) = log10(1) = 0, so zeroVal is 0
+    // in both modes; the clamp below keeps the zero line within SVG bounds.
+    const max = this._logarithmic ? Math.log10(Math.max(1, this.max)) : this.max;
+    const min = this._logarithmic ? Math.log10(Math.max(1, this.min)) : this.min;
+    const yRatio = ((max - min) / this.height) || 1;
+    const zeroY = this.height - ((0 - min) / yRatio) + this.margin[Y] * 2;
+    // Clamp zero line to the SVG area so bars never escape the chart bounds
+    const svgBottom = this.height + this.margin[Y] * 4;
+    const clampedZeroY = Math.min(Math.max(zeroY, 0), svgBottom);
+
+    return coords.map((coord, i) => {
+      const isNegative = coord[V] < 0;
+      const barY = isNegative ? clampedZeroY : coord[Y];
+      const barBottom = isNegative ? coord[Y] : clampedZeroY;
+      return {
+        x: (xRatio * i * total) + (xRatio * position) + spacing,
+        y: barY,
+        height: Math.max(0, barBottom - barY),
+        width: xRatio - spacing,
+        value: coord[V],
+      };
+    });
   }
 
   _midPoint(Ax, Ay, Bx, By) {
