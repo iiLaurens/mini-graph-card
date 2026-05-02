@@ -526,10 +526,15 @@ class MiniGraphCard extends LitElement {
     if (!bars) return;
     const items = bars.map((bar, i) => {
       const animation = this.config.animate
-        ? svg`
-          <animate attributeName='y' from=${this.config.height} to=${bar.y} dur='1s' fill='remove'
-            calcMode='spline' keyTimes='0; 1' keySplines='0.215 0.61 0.355 1'>
-          </animate>`
+        ? (bar.value < 0
+          ? svg`
+            <animate attributeName='height' from='0' to=${bar.height} dur='1s' fill='remove'
+              calcMode='spline' keyTimes='0; 1' keySplines='0.215 0.61 0.355 1'>
+            </animate>`
+          : svg`
+            <animate attributeName='y' from=${this.config.height} to=${bar.y} dur='1s' fill='remove'
+              calcMode='spline' keyTimes='0; 1' keySplines='0.215 0.61 0.355 1'>
+            </animate>`)
         : '';
       const color = this.computeColor(bar.value, index);
       return svg`
@@ -874,7 +879,7 @@ class MiniGraphCard extends LitElement {
   }
 
   updateBounds({ config } = this) {
-    this.bound = this.getBoundaries(
+    const primaryBound = this.getBoundaries(
       this.primaryYaxisSeries,
       config.lower_bound,
       config.upper_bound,
@@ -882,13 +887,27 @@ class MiniGraphCard extends LitElement {
       config.min_bound_range,
     );
 
-    this.boundSecondary = this.getBoundaries(
+    const secondaryBound = this.getBoundaries(
       this.secondaryYaxisSeries,
       config.lower_bound_secondary,
       config.upper_bound_secondary,
       this.boundSecondary,
       config.min_bound_range_secondary,
     );
+
+    // Bar charts always use 0 as the baseline, so ensure 0 is within the
+    // visible range (unless the user has explicitly overridden the bound).
+    if (config.show.graph === 'bar') {
+      if (config.lower_bound === undefined) primaryBound[0] = Math.min(0, primaryBound[0]);
+      if (config.upper_bound === undefined) primaryBound[1] = Math.max(0, primaryBound[1]);
+      if (config.lower_bound_secondary === undefined)
+        secondaryBound[0] = Math.min(0, secondaryBound[0]);
+      if (config.upper_bound_secondary === undefined)
+        secondaryBound[1] = Math.max(0, secondaryBound[1]);
+    }
+
+    this.bound = primaryBound;
+    this.boundSecondary = secondaryBound;
   }
 
   async getCache(key, compressed) {
